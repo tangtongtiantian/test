@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        /* 新增下标样式 */
+        sub {
+            font-size: 0.6em;
+            vertical-align: sub;
+        }
+
+        /* 调整公式容器样式 */
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        #formula {
+            flex: 1;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            font-size: 20px; /* 调小基础字号 */
+        }
+
+        /* 模块区域保持原样 */
+        .module-area {
+            flex: 1;
+            background: #e0e0e0;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            flex-wrap: wrap;
+            align-content: start;
+        }
+
+        .module {
+            width: 100px; /* 稍微加宽 */
+            height: 80px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: move;
+            background: white;
+            font-size: 16px; /* 模块字号 */
+        }
+
+        /* 改进分式样式 */
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 10px;
+            position: relative;
+        }
+
+        /* 添加永久横线 */
+        .fraction::after {
+            content: "";
+            width: 100%;
+            height: 1px;
+            background: black;
+            position: absolute;
+            top: 50%;
+        }
+
+        /* 调整占位框样式 */
+        .placeholder {
+            width: auto; /* 改为自动宽度 */
+            min-width: 60px;
+            padding: 0 5px;
+            height: 30px;
+            border: 2px dashed #666;
+            margin: 2px;
+            transition: all 0.3s;
+            font-size: 16px; /* 调小字号 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap; /* 防止换行 */
+        }
+
+        /* 错误状态保持原样 */
+        .error {
+            background: #ffcccc !important;
+        }
+
+        .formula-part {
+            display: flex;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="formula"></div>
+        <div id="modules" class="module-area"></div>
+    </div>
+
+    <script>
+        const stages = [
+            {
+                formula: 'ρ<sub>物</sub> = ',
+                parts: [{numerator: 'm', denominator: 'V'}],
+                modules: ['m', 'V']
+            },
+            {
+                formula: ' = ',
+                parts: [{numerator: 'G/g', denominator: 'F<sub>浮</sub>/ρ<sub>物</sub>g'}],
+                modules: ['G/g', 'F<sub>浮</sub>/ρ<sub>物</sub>g']
+            },
+            {
+                formula: ' = ',
+                parts: [{numerator: 'F1/g', denominator: '(F1-F2)/ρ<sub>物</sub>g'}],
+                modules: ['F1/g', '(F1-F2)/ρ<sub>物</sub>g']
+            }
+        ];
+
+        let currentStage = 0;
+        let filledParts = [];
+
+        function createFormula() {
+            const container = document.getElementById('formula');
+            container.innerHTML = '';
+            
+            // 初始公式
+            const rho = document.createElement('span');
+            rho.innerHTML = 'ρ<sub>物</sub> = ';
+            container.appendChild(rho);
+
+            // 添加各个阶段
+            for (let i = 0; i <= currentStage; i++) {
+                const part = document.createElement('div');
+                part.className = 'formula-part';
+                
+                if (i > 0) {
+                    const equal = document.createElement('span');
+                    equal.textContent = ' = ';
+                    part.appendChild(equal);
+                }
+
+                const fraction = document.createElement('div');
+                fraction.className = 'fraction';
+                
+                // 分子部分
+                const numerator = document.createElement('div');
+                numerator.className = 'placeholder';
+                numerator.dataset.stage = i;
+                numerator.dataset.type = 'numerator';
+                
+                // 分母部分
+                const denominator = document.createElement('div');
+                denominator.className = 'placeholder';
+                denominator.dataset.stage = i;
+                denominator.dataset.type = 'denominator';
+
+                fraction.appendChild(numerator);
+                fraction.appendChild(denominator);
+                part.appendChild(fraction);
+                
+                // 已填写内容
+                if (filledParts[i]) {
+                    numerator.innerHTML = filledParts[i].numerator;
+                    denominator.innerHTML = filledParts[i].denominator;
+                    numerator.style.border = 'none';
+                    denominator.style.border = 'none';
+                }
+
+                container.appendChild(part);
+            }
+        }
+
+        function createModules() {
+            const container = document.getElementById('modules');
+            container.innerHTML = '';
+            
+            stages[currentStage].modules.forEach(html => {
+                const module = document.createElement('div');
+                module.className = 'module';
+                module.draggable = true;
+                module.innerHTML = html;
+                // 存储纯文本用于验证
+                module.dataset.value = html.replace(/<sub>.*?<\/sub>/g, '');
+                module.addEventListener('dragstart', handleDragStart);
+                container.appendChild(module);
+            });
+        }
+
+        function handleDragStart(e) {
+            // 传输纯文本数据
+            e.dataTransfer.setData('text/plain', e.target.dataset.value);
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const data = e.dataTransfer.getData('text/plain');
+            const stage = parseInt(e.target.dataset.stage);
+            const type = e.target.dataset.type;
+            // 获取纯文本正确答案
+            const correct = stages[stage].parts[0][type].replace(/<sub>.*?<\/sub>/g, '');
+
+            if (data === correct) {
+                e.target.innerHTML = stages[stage].parts[0][type]; // 显示带格式内容
+                e.target.style.border = 'none';
+                filledParts[stage] = filledParts[stage] || {};
+                filledParts[stage][type] = stages[stage].parts[0][type];
+                
+                if (filledParts[stage].numerator && filledParts[stage].denominator) {
+                    if (currentStage < stages.length - 1) {
+                        currentStage++;
+                        createFormula();
+                        createModules();
+                    } else {
+                        alert('恭喜你完成了一份简洁的导图！');
+                    }
+                }
+            } else {
+                e.target.classList.add('error');
+                setTimeout(() => e.target.classList.remove('error'), 1000);
+            }
+        }
+
+        // 初始化事件
+        document.addEventListener('DOMContentLoaded', () => {
+            const formulaArea = document.getElementById('formula');
+            
+            formulaArea.addEventListener('dragover', e => {
+                e.preventDefault();
+                if (e.target.classList.contains('placeholder')) {
+                    e.target.style.background = '#f0f0f0';
+                }
+            });
+
+            formulaArea.addEventListener('dragleave', e => {
+                if (e.target.classList.contains('placeholder')) {
+                    e.target.style.background = '';
+                }
+            });
+
+            formulaArea.addEventListener('drop', e => {
+                e.preventDefault();
+                if (e.target.classList.contains('placeholder')) {
+                    e.target.style.background = '';
+                    handleDrop(e);
+                }
+            });
+
+            createFormula();
+            createModules();
+        });
+    </script>
+</body>
+</html>
